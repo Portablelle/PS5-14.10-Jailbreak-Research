@@ -1,1 +1,59 @@
-{}
+{
+  "sessions": 10,
+  "probes_built": 84,
+  "days": 4,
+  "last_updated": "2026-10-18",
+  "bugs_found": {
+    "metadatatable_overflow": {
+      "cve": "CVE-2026-64784",
+      "status": "blocked",
+      "reason": "4.29GB sweep, process crashes before JS regains control"
+    },
+    "cssfontface_uaf": {
+      "status": "testing",
+      "probe": "p170",
+      "source": "CSSFontFaceSet.cpp:381"
+    }
+  },
+  "dead_ends": [
+    "yarr_c3_position",
+    "rab_bytelength_inversion",
+    "clonedargs_propertycapacity",
+    "relapse_cves",
+    "streams_byob_mismatch"
+  ],
+  "audited_clean": [
+    "jsc_integer_overflows",
+    "aslr_leak_primitives",
+    "metadatatable_alternatives",
+    "serialized_script_value",
+    "streams_api"
+  ],
+  "audit_in_progress": [
+    "font_parsers",
+    "image_decoders",
+    "dom_mutation",
+    "jsc_deep_runtime",
+    "svg_processing",
+    "xml_domparser",
+    "worker_lifecycle",
+    "canvas_2d",
+    "css_layout",
+    "html_tokenizer",
+    "websocket_frames",
+    "editing_commands",
+    "shadow_dom",
+    "fetch_url_compression",
+    "css_animations",
+    "weakref_gc_timing"
+  ],
+  "device_recon": {
+    "fontface_api": true,
+    "image_formats": ["png", "jpeg", "gif", "webp", "bmp", "svg", "ico"],
+    "create_image_bitmap": true,
+    "woff2": false,
+    "truncated_png_loads": true,
+    "max_glyphs_65535_accepted": true,
+    "units_per_em_0_renders": true
+  }
+}

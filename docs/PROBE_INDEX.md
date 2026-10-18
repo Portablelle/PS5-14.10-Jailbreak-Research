@@ -1,1 +1,107 @@
 # Probe Index
+
+All probes tested on PS5 14.10. Results from device beacon logs.
+
+## MetadataTable Overflow Probes
+
+### Early Discovery (probes/metadata-overflow/early/)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p141 | First overflow test (wrong stride 96) | SIGSEGV, wraps to 715MB |
+| p142 | Correct stride 112 | COMPILED-OK, then crash on call |
+| p143 | Worker witness, targets below metadata | No corruption (forward only) |
+| p144 | Bait-and-switch, targets above metadata | Forward write confirmed |
+
+### Heap Groom (probes/metadata-overflow/heap-groom/)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p146 | Worker .length polling | All 14 strings corrupted, .length=81400 |
+| p147 | Substring views for data read | m_data8 intact, reads original 0x41 |
+| p148 | Main-thread targets | 14 JSCORRUPT, 0 LEAKED, StringImpl intact |
+| p148b | Sweep leak | Crash, no data |
+| p149 | FinalizationRegistry + ArrayBuffer targets | OOM before completion |
+| p149-diagnostic | Read after compile, before call | ZERO corruption (proves compile-time) |
+| p150 | Throwing callback | OOB read crashes, garbage dereference |
+
+### Extraction (probes/metadata-overflow/extraction/)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p155 | Lean worker | Compilation testing |
+| p156 | Bait-and-switch groom | Forward write layout |
+| p157 | ArrayBuffer extract | Zero-init blocks stale reads |
+| p158 | Throw extract | OOB crash |
+| p159 | Gradient fill strings | Crash, rope cells break heap layout |
+| p160 | Relapse CVE test | All patched |
+| p161 | Fast gradient | Crash |
+| p162 | Deep scan to 2000 bytes | Partial data |
+
+### Sweep Survival (probes/sweep-survival/)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p150g | 400 targets + 2000 padding, call function | CALLING then silence (240MB VM not enough) |
+| p150i | 3 waves of 5000 buffers, free between | OOM at BUILD (MADV_FREE pressure) |
+| p150j | Single wave 8000 buffers | OOM at BUILD (764MB too much) |
+| p150k | 5000 buffers + heavy GC | OOM at BUILD (477MB + blob = too much) |
+
+## Recon Probes (probes/recon/)
+
+### p161a: FontFace API Recon (15 tests)
+
+| Test | What | Result |
+|------|------|--------|
+| T0 | API availability | FontFace YES, document.fonts YES |
+| T1 | Valid font load + add | LOADED-OK, ADD-OK |
+| T2 | numTables=0 | RangeError (JS build, not parser) |
+| T3 | numTables=0xFFFF | NetworkError (rejected) |
+| T4 | Table offset past EOF | NetworkError |
+| T5 | Table length=0 | NetworkError |
+| T6 | Table length=0xFFFFFFFF | NetworkError |
+| T7 | CFF (OTTO) signature | NetworkError |
+| T8 | WOFF totalSfntSize=0xFFFFFFFF | NetworkError |
+| T9 | WOFF maxTables | NetworkError |
+| T10 | maxp numGlyphs=0xFFFF | OK (accepted) |
+| T11 | unitsPerEm=0 + canvas draw | OK, DRAW-OK |
+| T12 | Canvas pixel count | 311 non-zero pixels |
+| T13 | ArrayBuffer source | OK (direct buffer loading works) |
+| T14 | WOFF2 signature | NetworkError (not supported) |
+
+### p161b: Image Decoder Recon (19 tests)
+
+| Test | What | Result |
+|------|------|--------|
+| FMT-PNG | PNG 1x1 | OK |
+| FMT-JPEG | JPEG 1x1 | OK |
+| FMT-GIF | GIF 1x1 | OK |
+| FMT-WEBP | WebP 1x1 | OK |
+| FMT-BMP | BMP 1x1 | OK |
+| FMT-SVG | SVG 1x1 | OK |
+| FMT-ICO | ICO 1x1 | OK |
+| CIB | createImageBitmap | Available |
+| PNG-0x0 | Zero dimension | FAIL (rejected) |
+| PNG-HUGE | 65535x65535 | FAIL (rejected) |
+| PNG-BADCLR | Invalid color type | FAIL (rejected) |
+| PNG-TRUNC | Truncated IDAT | OK (loaded) |
+| PNG-32K | 32768x32768 | FAIL (rejected) |
+| PNG-INTMAX | INT_MAX width | FAIL (rejected) |
+| CANVAS | drawImage + getImageData | OK |
+| CIB-WEBP | createImageBitmap from WebP | OK |
+| CIB-CROP | CIB with crop rect | OK |
+| CIB-HUGECROP | CIB with oversized crop | OK (clamped to 1x1) |
+
+## RAB Probes
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p160a | RAB byteLength inversion | TypeErrors on all stale-read paths |
+| p160b | RAB full sink audit | All sinks correctly guarded |
+| p160c | RAB grow + fetch | Stale view reads extra zeros, no leak |
+
+## Relapse Probes (probes/relapse-test/)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p160 | Full Relapse CVE test suite | All patched on 14.10 |
