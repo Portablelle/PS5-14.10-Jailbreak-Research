@@ -100,6 +100,28 @@ All probes tested on PS5 14.10. Results from device beacon logs.
 | p160b | RAB full sink audit | All sinks correctly guarded |
 | p160c | RAB grow + fetch | Stale view reads extra zeros, no leak |
 
+## Font Parser Fuzz (Session 11)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p180a | 12 TrueType corruption variants via FontFace API | T5 LOCA-OOB LOADED, T7 DIR-PAST-EOF LOADED, T6/T11 REJECTED |
+| p182 | Font loca OOB read at controlled offsets | Deployed, awaiting results |
+
+## ClonedArguments UAF (Session 11)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p221 | ClonedArgs butterfly UAF via Proxy trap | Proxy fires (beef0001), butterfly not freed |
+| p243 | Heap feng shui: spray + butterfly adjacency | Holes read zeros, no spray reclaim (wrong allocator) |
+| p246 | Butterfly reclaim via JSArray spray (same allocator) | Deployed, awaiting results |
+
+## CSSFontFace UAF (Session 11)
+
+| Probe | Purpose | Device Result |
+|-------|---------|---------------|
+| p170 | CSSFontFace UAF via WOFF2 font cycling | Network errors (PS5 rejects WOFF2) |
+| p175 | CSSFontFace UAF via TTF from ArrayBuffer | Deployed, awaiting results |
+
 ## Relapse Probes (probes/relapse-test/)
 
 | Probe | Purpose | Device Result |

@@ -105,17 +105,19 @@ This research was built with multiple LLMs working together.
 
 ## Progress
 
-84+ probes across 10 sessions over 4 days. MetadataTable overflow is confirmed but blocked by sweep length. Currently scanning all remaining WebKit attack surfaces for a new entry point.
+90+ probes across 11 sessions over 5 days. Three active exploitation paths under development. 20+ attack surfaces audited.
 
 | Stage | Status |
 |-------|--------|
-| Bug identification | Done (CVE-2026-64784) |
+| Bug identification | Done (CVE-2026-64784 + 3 new bugs) |
 | Trigger on device | Done |
 | Heap grooming | Done |
 | JSString corruption | Done |
 | Sweep survival | Blocked (4.29GB too long) |
-| **New bug search** | **In progress (17+ surfaces)** |
-| CSSFontFace UAF | Testing on device |
+| New bug search | Done (20+ surfaces audited) |
+| Font parser OOB read | Testing (loca table offset accepted on device) |
+| ClonedArgs butterfly UAF | Testing (JSArray reclaim strategy) |
+| CSSFontFace UAF | Testing (TTF ArrayBuffer variant) |
 | Arbitrary read/write | Not started |
 | WebKit code execution | Not started |
 | Kernel exploit | Not started |

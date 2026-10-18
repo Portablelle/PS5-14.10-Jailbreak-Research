@@ -26,7 +26,23 @@ Validated: p143 (no corruption when targets below), p144 (corruption when target
 
 `CSSFontFaceSet::matchingFacesExcludingPreinstalledFonts` (line 381) returns `std::reference_wrapper<CSSFontFace>` (non-owning). The fix changed this to `Ref<CSSFontFace>`. Also `fontLoadEventOccurred()` calls `pump()` and client callbacks without `Ref<CSSFontFace> protectedThis`. Only `timeoutFired()` and `fontLoaded()` have that protection.
 
-**Status: TESTING.** Probe p170 deployed. Awaiting device results.
+**Status: TESTING.** Probe p170 used WOFF2 (rejected on PS5). Probe p175 uses TTF from ArrayBuffer. Awaiting device results.
+
+### 5. Font Parser OOB Read via loca Table (Device Confirmed)
+
+PS5 FreeType accepts fonts with loca table offsets pointing past the glyf table boundary. V180A-T5 confirmed: font with loca[0]=0x7FFFFFFF loaded, rendered, and passed canvas read. V180A-T7 confirmed: directory entry offset past EOF also loads and renders.
+
+FreeType on PS5 does NOT fully validate font internal offsets before use. With Gigacage disabled, the font buffer (from ArrayBuffer via FontFace API) shares bmalloc heap with JSC objects. A font with controlled OOB loca offsets can read adjacent heap memory through glyph rendering, then extract the data via Canvas getImageData.
+
+**Status: TESTING.** Probe p182 deployed, testing multiple OOB offsets past glyf table.
+
+### 6. ClonedArguments Butterfly UAF (Partially Confirmed)
+
+ClonedArguments.cpp:289 butterfly pointer stale after Proxy trap reentrancy. Converting to ArrayStorage via `args[0x7fffffff]` orphans the old butterfly. V221 and V243 confirmed: Proxy trap fires, hole positions read back as zeros (empty slot values from stale butterfly), non-hole values intact.
+
+ArrayBuffer spray does NOT reclaim butterfly memory (different allocator subspace). p246 fixes this with JSArray spray (same jsValueGigacageAuxiliarySpace). Awaiting device results.
+
+**Status: TESTING.** p246 JSArray reclaim strategy deployed.
 
 ## Confirmed Dead Ends
 
@@ -49,6 +65,12 @@ Validated: p160 on device.
 ### Streams API BYOB Reader
 BYOB reader ctor/elementSize mismatch is real (acknowledged by FIXME comments in source) but TypedArray constructor bounds checking prevents all OOB paths. Every combination results in RangeError or truncated but in-bounds views.
 
+### ReadableByteStreamController
+Not implemented on PS5. V190A-P4-ERR: "TypeError: ReadableByteStreamController is not implemented". BYOB exploitation paths blocked.
+
+### SVG Font GSUB Placeholder Truncation
+SVGToOTFFontConversion.cpp line 119 truncates delta to uint16_t via implicit conversion. Triggers when GSUB ligature subtable exceeds 64KB (~10923 ligature pairs). However, the truncation corrupts offsets INSIDE the OTF buffer, not heap metadata. overwrite16 writes a wrong VALUE at a correct LOCATION. This is font data corruption, not a WebKit memory safety issue. Would only be exploitable if FreeType itself misparses the resulting malformed GSUB table.
+
 ## Audited Surfaces (No Bugs Found)
 
 | Surface | Agent | Result |
@@ -67,6 +89,26 @@ FontFace and document.fonts.add work on PS5. Parser rejects most malformed fonts
 - unitsPerEm=0 loads AND renders on canvas (potential div-by-zero in layout math)
 - WOFF2 is rejected
 - ArrayBuffer source loading works (no data URL needed)
+
+### Font Parser Fuzz (p180a, V180A)
+12 corruption variants tested against FreeType via FontFace API from ArrayBuffer.
+
+| Test | Corruption | Result |
+|------|-----------|--------|
+| T0 | Valid baseline | LOADED + RENDER + CANVAS-OK |
+| T1 | numGlyphs=0xFFFF | LOADED |
+| T2 | numHMetrics=0xFFFF | LOADED |
+| T3 | Bad loca format | LOADED |
+| T4 | Huge cmap segCount | LOADED |
+| T5 | LOCA OOB OFFSET | LOADED (OOB read potential) |
+| T6 | Dir size overflow | REJECTED |
+| T7 | Dir offset past EOF | LOADED (OOB read potential) |
+| T8 | maxp zero glyphs | LOADED |
+| T9 | Bad magic number | LOADED |
+| T10 | Huge numTables | LOADED |
+| T11 | unitsPerEm=0 | REJECTED |
+
+T5 and T7 are the critical findings. FreeType accepts fonts with offsets pointing outside the valid table data.
 
 ### Image Decoders (p161b)
 All 7 formats supported: PNG, JPEG, GIF, WebP, BMP, SVG, ICO. createImageBitmap available. Edge cases:
