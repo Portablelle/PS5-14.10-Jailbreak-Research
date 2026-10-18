@@ -36,13 +36,15 @@ FreeType on PS5 does NOT fully validate font internal offsets before use. With G
 
 **Status: TESTING.** Probe p182 deployed, testing multiple OOB offsets past glyf table.
 
-### 6. ClonedArguments Butterfly UAF (Partially Confirmed)
+### 6. ClonedArguments Butterfly UAF (DEAD: Conservative Scan)
 
-ClonedArguments.cpp:289 butterfly pointer stale after Proxy trap reentrancy. Converting to ArrayStorage via `args[0x7fffffff]` orphans the old butterfly. V221 and V243 confirmed: Proxy trap fires, hole positions read back as zeros (empty slot values from stale butterfly), non-hole values intact.
+ClonedArguments.cpp:289 butterfly pointer stale after Proxy trap reentrancy. V221/V243/V246 confirmed: Proxy trap fires, hole position returns Proxy value, but old butterfly is NEVER freed.
 
-ArrayBuffer spray does NOT reclaim butterfly memory (different allocator subspace). p246 fixes this with JSArray spray (same jsValueGigacageAuxiliarySpace). Awaiting device results.
+Root cause (source verified + device confirmed): conservative stack scanning keeps the stale `data` pointer alive. The C++ stack frame for `copyToArguments` is still on the stack when the Proxy trap fires. JSC's `ConservativeRoots.cpp:66-82` scans the stack for pointer-aligned values and adds any MarkedBlock cell pointer as a GC root. Even with JSArray spray (correct allocator space), `marksConveyLivenessDuringMarking` keeps the butterfly alive across GC cycles.
 
-**Status: TESTING.** p246 JSArray reclaim strategy deployed.
+V246 device results: all 8 rounds show original sequential values at non-hole positions, `0xBEEF` at hole position 5, no CAFE spray markers anywhere. ArrayBuffer spray (V221/V243) and JSArray spray (V246) both fail.
+
+**Status: DEAD.** Cannot free butterfly while `copyToArguments` is on the call stack.
 
 ## Confirmed Dead Ends
 
