@@ -128,11 +128,14 @@ X: [@Arn0Stride7](https://x.com/Arn0Stride7)
 
 ## Support
 
-If you want to help keep this research going, you can send a contribution here:
+If you want to help keep this research going, contributions go directly into keeping the lights on.
 
-PayPal: [paypal.me/arnoldzap](https://paypal.me/arnoldzap)
-
-Crypto accepted too, reach out on X for wallet addresses.
+| Method | Address |
+|--------|---------|
+| PayPal | [paypal.me/arnoldzap](https://paypal.me/arnoldzap) |
+| BTC | `bc1qw2lpq8p0cspdk9dlddv6y0wswh6z6svtjjkn73` |
+| ETH | `0xfad7D7e182FC77194AB3737130651Ec85958932b` |
+| SOL | `BftaLxgQvgn9WN1YXTJePeUPWzJK5whMnFRVQ8EdLzvv` |
 
 All donations will be disclosed and used for AI subscriptions, PS5 and PS4 hardware for jailbreak research, and continuous improvement of this project.
 
