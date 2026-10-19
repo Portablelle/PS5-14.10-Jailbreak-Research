@@ -17,28 +17,45 @@ Validated on device (p163).
 | Cores | 4 |
 | Display | 1920x1080 |
 
-**Available:** Workers, WebSocket, fetch, SubtleCrypto, Canvas 2D, ReadableStream, ResizableArrayBuffer, WeakRef, FinalizationRegistry, Proxy, BigInt, structuredClone
+**Available:** Workers, WebSocket, fetch, SubtleCrypto, Canvas 2D, ReadableStream, WritableStream, TransformStream, ResizableArrayBuffer, WeakRef, FinalizationRegistry, Proxy, BigInt, structuredClone, FontFace, Custom Elements, Atomics
 
-**Not available:** WebAssembly, SharedArrayBuffer, WebGL, WebAudio, IndexedDB, ServiceWorker
+**Not available:** WebAssembly, SharedArrayBuffer, WebGL, WebAudio, IndexedDB, ServiceWorker, BYOB streams, WebGPU
 
 ## Source Reference
 
-The PS5 WebKit binary is not publicly available. We use the open source **WebKit-1200** snapshot (December 2023) as a reference for structure layouts, function internals, and allocator behavior. This is the closest matching version to the Safari 17.0 / AppleWebKit 605.1.15 engine on the console. All assumptions from source are then validated on device with probes.
+The PS5 WebKit binary is not publicly available. We use two open source snapshots as reference:
+
+- **WebKit-1200** (December 2023) — initial reference, closest to Safari 17.0 / AppleWebKit 605.1.15
+- **WebKit-1400** (WK-1400) — primary audit source since Session 11, used for all current source analysis
+
+All assumptions from source are validated on device with probes.
 
 ## The Bug
 
-JavaScriptCore Bug 317632. `UnlinkedMetadataTable::finalize()` uses an `unsigned` accumulator with no overflow check.
+### CVE-2026-43715: CSSFontFace iterateClients UAF
 
-```
-38,348,816 calls x 112 bytes = 4,295,067,392
-uint32 wraps to 100,096 bytes
+[Full writeup](docs/bugs/cssfontface-uaf.md)
+
+`iterateClients()` in CSSFontFace.cpp copies a WeakHashSet into a `Vector<Ref<Client>>` and then invokes a callback on each client. When `FontFace::fontStateChanged` runs, it resolves `m_loadedPromise`. The promise resolution checks whether the result is a thenable -- if the resolved value has a `.then` property, the engine calls that getter synchronously.
+
+An attacker places a getter on `FontFace.prototype.then` that removes a style element and forces a synchronous layout. This causes a client to be removed from the WeakHashSet while the callback loop is still iterating. The next iteration invokes a callback on the now-disconnected client -- a use-after-free.
+
+```js
+Object.defineProperty(FontFace.prototype, 'then', { get() {
+    document.getElementById('victim-style').remove();
+    document.body.offsetHeight; // force synchronous layout
+}, configurable: true });
+
+const face = new FontFace('test', 'url(font.ttf)');
+document.fonts.add(face);
+face.load();
 ```
 
-Allocator reserves 100KB. The interpreter writes 4.29GB forward into heap.
+**Status:** Patched in upstream WebKit (commit `5aedb82`). The WK-1400 build on PS5 14.10 does not include this fix. A device test has been deployed and is awaiting crash confirmation.
 
 ## Probes
 
-84+ probes across 10 sessions. See [docs/PROBE_INDEX.md](docs/PROBE_INDEX.md) for the full list with device results.
+90+ probes across 11+ sessions. See [docs/PROBE_INDEX.md](docs/PROBE_INDEX.md) for the full list with device results.
 
 | Probe | What it does | Result |
 |-------|-------------|--------|
@@ -48,36 +65,11 @@ Allocator reserves 100KB. The interpreter writes 4.29GB forward into heap.
 | p144 | Bait and switch | Forward write confirmed |
 | p146 | Worker .length polling | **All 14 strings corrupted, .length = 81400** |
 | p147, p148 | Substring and main thread views | StringImpl data intact, JSString.m_fiber corrupted |
-| p149g | Read after compile, before call | Overflow is at compile time, not call time |
-| p150 | Throwing callback | OOB read crashes before callback |
 | p150g-k | Sweep survival (5 strategies) | All OOM or crash, sweep is too long |
-| p156 | charCodeAt scan | All 0x41, m_data8 points to original buffer |
-| p159, p161 | Gradient strings | Crash, rope cells break heap layout |
 | p160 | Relapse CVE set | **All patched on 14.10** |
-| p160a-c | RAB byteLength inversion | TypeErrors on all stale read paths |
-| p161a | FontFace API recon | 15 tests, numGlyphs=0xFFFF accepted, unitsPerEm=0 renders |
-| p161b | Image decoder recon | 7 formats work, truncated PNG loads, CIB available |
 | p163 | Device fingerprint | Complete |
-
-## Key Findings
-
-1. **MetadataTable integer overflow triggers on device.** Bug 317632. `UnlinkedMetadataTable::finalize()` unsigned accumulator. 38,348,816 call sites wraps to 100,096 bytes. Allocator reserves 100KB, interpreter writes 4.29GB forward.
-
-2. **Bait and switch heap groom controls write target.** Bait strings fill the heap first. Target strings go above them. Free the baits and run GC. Metadata buffer takes a freed bait slot. Sweep goes forward into the targets.
-
-3. **Sweep corrupts JSString objects.** Overwrites `m_fiber` in JSString headers inside MarkedSpace. All 14 targets report `.length = 81400` after the sweep.
-
-4. **StringImpl backing data stays intact.** `charCodeAt` returns original 0x41 because `m_data8` still points to the original buffer. Corruption is in the JSString header, not the character data.
-
-5. **Sweep is too long to survive.** 4.29GB forward write exits mapped virtual memory. Maximum working spray is ~240MB (2400 buffers). 5000+ buffers causes OOM during compilation. Five different strategies tested (p150g through p150k), all fail.
-
-6. **All Relapse WebKit bugs are patched on 14.10.** p160 tested the full set.
-
-7. **Gigacage is disabled on PS5.** ArrayBuffer backing stores share heap with JSC internals. No address space isolation. Significant for any future primitive.
-
-8. **FontFace API is fully reachable.** Font parser accepts numGlyphs=0xFFFF and unitsPerEm=0. CSSFontFace UAF found in source (testing on device).
-
-9. **All 7 image formats supported.** PNG, JPEG, GIF, WebP, BMP, SVG, ICO. Truncated PNG IDAT loads without error.
+| V399 | Full API fingerprint | Version/17.0, no WASM/SAB/BYOB/WebGPU, yes RAB/Atomics/Workers/FontFace/Proxy |
+| V445 | CSSFontFace UAF | Deployed, awaiting results |
 
 ## How to Use
 
@@ -105,22 +97,13 @@ This research was built with multiple LLMs working together.
 
 ## Progress
 
-90+ probes across 11 sessions over 5 days. Three active exploitation paths under development. 20+ attack surfaces audited.
-
 | Stage | Status |
 |-------|--------|
-| Bug identification | Done (CVE-2026-64784 + 3 new bugs) |
-| Trigger on device | Done |
-| Heap grooming | Done |
-| JSString corruption | Done |
-| Sweep survival | Blocked (4.29GB too long) |
-| New bug search | Done (20+ surfaces audited) |
-| Font parser OOB read | Testing (loca table offset accepted on device) |
-| ClonedArgs butterfly UAF | Testing (JSArray reclaim strategy) |
-| CSSFontFace UAF | Testing (TTF ArrayBuffer variant) |
+| Bug identification | Done |
+| 20+ surface audit | Done |
+| CSSFontFace UAF (CVE-2026-43715) | Device test deployed |
 | Arbitrary read/write | Not started |
 | WebKit code execution | Not started |
-| Kernel exploit | Not started |
 
 ## Contact
 

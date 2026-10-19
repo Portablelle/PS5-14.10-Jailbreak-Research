@@ -5,9 +5,9 @@ Derives every userland constant **in runtime** through the WebKit ARW primitive
 instead of the static `offsets/<fw>.js` tables. Nothing here is firmware-specific.
 
 Every claim carries a `path:line` into a tree that exists locally **right now**:
-- `L` = `/home/violence/Work/ps5-lan-research/ps5-webkit-remote-loader`
-- `W` = `/home/violence/Work/ps5-lan-research/14.10-bid/wk1200-source/WebKit-1200`
-- `B` = `/home/violence/Work/ps5-lan-research/14.10-bid`
+- `L` = `<workdir>/ps5-webkit-remote-loader`
+- `W` = `<workdir>/wk1200-source/WebKit-1200`
+- `B` = `<workdir>/14.10-bid`
 
 > Status legend: **[DERIVED]** = fully runtime, no table · **[DERIVED+VALIDATE]** = runtime
 > but the heuristic needs one console confirmation · **[RESIDUAL]** = not derivable by our
@@ -328,7 +328,7 @@ or throws `DerivationError{rung, detail}`. On any `DerivationError` the variant:
 
 The "four sayings" are formalized here as the four fail-closed rungs (d1 wkbase, d2
 dynsym, d3 gadgets, d4 syscalls); I could not find the earlier artifact on disk
-(grepped all of `/home/violence` for `gate/halt` / `sayings` — nothing), so the variant
+(grepped the local tree for `gate/halt` / `sayings` — nothing), so the variant
 defines them explicitly and marks each with the `🙊` halt beacon plus a nonce so a
 mid-run reload is distinguishable.
 
