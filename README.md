@@ -126,6 +126,16 @@ This research was built with multiple LLMs working together.
 
 X: [@Arn0Stride7](https://x.com/Arn0Stride7)
 
+## Support
+
+If you want to help keep this research going, you can send a contribution here:
+
+PayPal: [paypal.me/arnoldzap](https://paypal.me/arnoldzap)
+
+Crypto accepted too, reach out on X for wallet addresses.
+
+All donations will be disclosed and used for AI subscriptions, PS5 and PS4 hardware for jailbreak research, and continuous improvement of this project.
+
 ## License
 
 MIT
