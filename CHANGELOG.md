@@ -16,12 +16,19 @@
   `results/beacon-logs/vcan-run{1,2,3}.txt`.
 - `tools/remote-loader/fa-canvas-fake.js` (VCFK-): stage-2 probe. The State
   lives in `Vector<State, 1>` (inline capacity) inside the context;
-  `save()` is deferred (`++m_unrealizedSaveCount`), one state-modifying
-  setter realizes exactly one append — an out-of-line `2*sizeof(State)`
-  FastMalloc buffer that the context destructor frees. AB spray reclaims
-  it: `lineWidth` write-through into a JS view + `setLineDash` stores a
-  fresh `Vector<double>` header (heap pointer) in the same view — leak
-  path with no fake vtable and no `m_canvas` deref risk.
+  `save()` is deferred (`++m_unrealizedSaveCount`), state-modifying setters
+  realize the pending saves — 8 saves push the out-of-line state buffer to
+  ~16*sizeof(State) (~3.4KB). The context destructor frees that buffer; an
+  AB spray reclaims it: `lineWidth` write-through into a JS view +
+  `setLineDash` stores a fresh `Vector<double>` header (heap pointer) in the
+  same view — leak path with no fake vtable and no `m_canvas` deref risk.
+- v4 run 1 lesson: **`sizeof(CanvasRenderingContext2D)` itself sits in the
+  384-512 range** (inline State included) — spraying 384-512 ABs reclaims
+  the CONTEXT slot (zeroing `m_canvas`/`m_buffer`) and kills the webview at
+  the first stale read. The context slot must stay freed-but-mapped and
+  untouched; only the big state buffer is sprayed (v5). The 384-512
+  context class also explains the v3 run 2 death after two beacon XHRs
+  (~400-byte objects) and the v3 R3 death under the 0x41 AB spray.
 - Fingerprint (4th console): `offscreen=false bitmaprenderer=true webgl=false`;
   this build converts only `desynchronized` from
   `CanvasRenderingContext2DSettings`.

@@ -238,3 +238,20 @@ live context, and **dies** when it holds attacker bytes.
   crafted fake context (vtable / `m_state` / `m_canvas`) gives type
   confusion toward addrof/fakeobj and arbitrary read/write (Gigacage is
   disabled on PS5).
+
+## Size-class note (v4 run 1, 2026-10-20)
+
+The v4 probe (2*sizeof(State) spray at 384-512) died silently before its
+first result beacon: **`sizeof(CanvasRenderingContext2D)` itself sits in the
+384-512 range** — inline `Vector<State,1>` storage included. Spraying that
+range reclaims the CONTEXT slot (zero-filled: `m_canvas` = `m_buffer` =
+NULL) and the first stale read SEGVs. Consequences:
+
+- The context slot must stay freed-but-mapped and untouched; the state
+  buffer must be sprayed at a size class far away. v5 uses 8 realized
+  saves (~16*sizeof(State), ~3.4KB) and sprays 1.8-4.4KB.
+- The 384-512 context class retroactively explains v3 run 2 (death after
+  two ~400-byte beacon XHRs reclaimed the slot) and v3 R3 (0x41 AB spray
+  covering the class).
+- Any future grooming near 384-512 must expect CanvasRenderingContext2D,
+  XMLHttpRequest-sized WebCore objects, and small ABs to share the class.
