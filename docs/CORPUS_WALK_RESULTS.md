@@ -20,18 +20,31 @@ protocol. Log: `results/beacon-logs/corpus-walk-complete.txt`.
 
 ## Exploitation ranking
 
-1. **Case 154** — `WTFCrashWithSecurityImplication` (WebKit's own security
-   classification): a release-build security-assertion violation in
-   `RenderFragmentedFlow::removeLineFragmentInfo()` — memory-unsafe by
-   WebKit's own admission. Next step: fetch the fix commit, identify the
-   freed/dangling object and its reclaim window.
-2. **Cases 147 + 410** — two distinct triggers into the same sink
-   (`TreeScopeOrderedMap::getElementById` during DOM/SVG teardown): the sink is
-   structurally fragile — a third, attacker-shaped trigger may exist, and the
-   ordered-map entries are a classic reclaim target. Case 147 is 7/7.
-3. Cases 152/160/176/217 — layout/render-tree invalidation crashes; classic
-   UAF-read shapes, teardown-tight windows (like the event-dispatcher bug).
-4. 499/504 — null derefs, DoS only.
+1. **Case 176** (BZ 272687, dup of 272296; fixed by the patch for **BZ 272488**,
+   commit `7edad1b0d5e5`, originally landed from the
+   `webkit-2024.4-embargoed` branch with WebKit security CC'd) —
+   `RenderBlockFlow::rebuildFloatingObjectSetFromIntrudingFloats()` moved the
+   old floating objects into a `RendererToFloatInfoMap` keyed by RAW
+   `RenderBox*` pointers, compared stale float geometry against the rebuilt
+   set, and marked line ranges dirty from it — dangling renderer pointers
+   across a layout rebuild. The fix DELETES the whole path. Pure-JS minimal
+   trigger (writing-mode + display class flips + a float rebuild);
+   **mutation→layout window is attacker-sized**. The strongest remaining
+   reclaim candidate of the corpus.
+2. **Cases 152/160** (BZ 263019 / 263182) — IFC partial-invalidation computes
+   inconsistent damage offsets (first-letter, offset past the last display
+   box); downstream OOB-read shapes, fixes at `626ccb56` / `c7356ae7`.
+3. **Case 217** (BZ 280068) — subgrid implicitly-named lines can produce an
+   EMPTY Vector used downstream (fix `65ecac43`).
+4. ~~Cases 147 + 410~~ — `TreeScopeOrderedMap` kills are RELEASE_ASSERT aborts
+   on this build (17.0-era `get()` asserts `treeScope == scope`): DoS only.
+   Minimal clip-path trigger 3/3 (`fa-sink-battery.js`).
+5. ~~Case 154~~ — multicol stale `m_lastSetWorkedOn`: the cache points at a
+   MOVED (live) set, not a freed one; the kill needs the heavy CSS +
+   `execCommand` immediately at onload (delayed 1.5s → survives; noscript →
+   survives; nolayout → survives; `fa-sink3.js`). Assert DoS, nothing to
+   reclaim.
+6. 499/504 — null derefs, DoS only.
 
 ## Session mechanics (for future walks)
 
