@@ -166,7 +166,15 @@
     setTimeout(next, 250);
   }
 
-  // ── plan ────────────────────────────────────────────────────────────────
+  // ── plan (with localStorage crash-resume: a killed step is skipped on the
+  // next guide load — white page → reopen → the battery continues) ────────
+  var STEP_KEY = 'vsink-step-v1';
+  var startStep = 0;
+  try { startStep = parseInt(localStorage.getItem(STEP_KEY) || '0', 10) || 0; } catch (e) {}
+  function saveStep(i) {
+    try { localStorage.setItem(STEP_KEY, String(i)); } catch (e) {}
+  }
+
   var plan = [];
   plan.push(function(next) { phaseA('baseline', function() {}, next); });
   plan.push(function(next) { phaseA('abspray', sprayABs, next); });
@@ -181,11 +189,20 @@
     })(SHAPES[si]);
   }
 
-  B('PLAN', 'steps=' + plan.length);
+  B('PLAN', 'steps=' + plan.length + ' from=' + startStep);
   function run() {
-    var step = plan.shift();
+    var idx = startStep;
+    var step = plan[idx];
     if (!step) { B('DONE-ALL-SURVIVED'); return; }
-    step(run);
+    saveStep(idx + 1); // a crash on this step is skipped on the next load
+    step(function advanceStep() {
+      startStep++;
+      idx = startStep;
+      step = plan[idx];
+      if (!step) { B('DONE-ALL-SURVIVED'); return; }
+      saveStep(idx + 1);
+      step(advanceStep);
+    });
   }
   setTimeout(run, 200);
 })();
