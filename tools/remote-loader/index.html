@@ -4,9 +4,10 @@
 <script>
 (function() {
   var s = document.getElementById('s');
-  // Active probe: fa-case-loop.js (killer candidates 24/25 x20 iterations).
-  // Previous: corpus-runner (51/51 walked), so (v9), next (v8), silent (v7).
-  var PROBE = 'fa-case-loop.js';
+  // Active probe: fa-corpus-runner.js (crash-corpus walk — resumes after the
+  // highest GAP via /corpus-next; the expanded corpus appends after case 51).
+  // Previous: case-loop (event-dispatcher UAF 3/3), so (v9), next (v8)...
+  var PROBE = 'fa-corpus-runner.js';
   s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
   var sc = document.createElement('script');
   sc.src = PROBE + '?v=' + Date.now();

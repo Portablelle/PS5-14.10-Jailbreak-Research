@@ -174,6 +174,28 @@ context with bidirectional write-through** (the strongest remaining
 primitive), wild-wrapper lottery L1 crashed (first ticket). Consolidated
 logs: `results/beacon-logs/vcan-runs4-8.txt`.
 
+**v9 (second-order):** the dual-wrapper state is REF-PINNED (the stale
+wrapper's ref keeps the aliased canvas alive) — a GC-timed second free is
+structurally impossible. XHR lottery ticket lost.
+
+## Crash-Corpus Replay (2026-10-20)
+
+`fa-corpus-runner.js` (VCORP-) walks `corpus/list.json` — public WebKit
+layout tests added by crash-fix commits since the Safari 17.0 branch point
+(harvested with the ZigZagBoi1 tooling, PR #55; expanded with
+`corpus_expand.py` date-window harvest). Crash-resume via `/corpus-next`
+(host.py scans the beacon log for the highest GAP-i).
+
+- Walk 1 (51 cases): 25 OK, then death in the teardown gap after case 24.
+- Walk 2 (resume at 25): remaining 26 OK — `CORPUS-DONE-50`.
+- `fa-case-loop.js` (VC25-): case 24 kills at iteration 0's teardown gap —
+  **3/3 deterministic**. See `docs/bugs/event-dispatcher-timer-uaf.md`:
+  RemoteLayerTreeEventDispatcher RunLoop::Timer UAF (BZ 315533), fixed
+  upstream in `2df698f5`. Second confirmed memory-corruption bug on this
+  console. PC-control shape (virtual fired() through the freed vptr, on the
+  scrolling thread) but a sub-millisecond free→use window (1ms one-shot
+  timer) — complementary to the canvas bug.
+
 
 ## Relapse Probes (probes/relapse-test/)
 
