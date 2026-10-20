@@ -68,7 +68,16 @@ class CorpusNextTests(unittest.TestCase):
         ])
         status, payload = self.get("/corpus-next")
         self.assertEqual(status, 200)
-        self.assertEqual(payload["next"], 2)
+        self.assertEqual(payload["next"], 3)
+
+    def test_crashed_case_is_skipped_not_replayed(self):
+        self.write_log([
+            "/beacon/VCORP-a-GAP-146?t=1&n=1",
+            "/beacon/VCORP-a-BEFORE-147?t=2&n=2",  # killer: no GAP-147 ever
+        ])
+        status, payload = self.get("/corpus-next")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["next"], 148)
 
     def test_out_of_order_and_malformed_lines(self):
         self.write_log([

@@ -391,13 +391,15 @@ class GuideHandler(SimpleHTTPRequestHandler):
     def _send_corpus_next(self):
         """Crash-resume cursor for the corpus runner.
 
-        The runner marks each closed case with a GAP-<i> beacon; a case that
-        kills the WebProcess emits BEFORE-<i> with no GAP. The next page load
-        asks this endpoint where to resume, so a corpus walk survives any
-        number of crashes without re-running known-OK cases.
+        A case that closes emits BEFORE-<i> then GAP-<i>; a case that kills
+        the WebProcess emits BEFORE-<i> with no GAP. The cursor must skip BOTH
+        (replaying a killer would crash-loop the walk on every reload), so the
+        next case is max(all BEFORE and GAP indices) + 1. A case whose BEFORE
+        never made it out (death before the beacon) stays uncounted and is
+        replayed — the correct behavior, since it was never attempted.
         """
         import re as _re
-        highest = -1
+        seen = set()
         try:
             with open(os.path.join(REPO_ROOT, "host-beacons.log"), encoding="utf-8") as fh:
                 for line in fh:
@@ -405,11 +407,12 @@ class GuideHandler(SimpleHTTPRequestHandler):
                         path = json.loads(line).get("path", "")
                     except ValueError:
                         continue
-                    m = _re.search(r"GAP-(\d+)", path)
+                    m = _re.search(r"(?:BEFORE|GAP)-(\d+)", path)
                     if m:
-                        highest = max(highest, int(m.group(1)))
+                        seen.add(int(m.group(1)))
         except OSError:
             pass
+        highest = max(seen) if seen else -1
         payload = json.dumps({"next": highest + 1}).encode("utf-8")
         try:
             self.send_response(200)
