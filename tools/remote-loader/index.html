@@ -4,10 +4,9 @@
 <script>
 (function() {
   var s = document.getElementById('s');
-  // Active probe: fa-sink-battery.js (case-154 controlled window + the
-  // TreeScopeOrderedMap teardown-lookup shapes). Previous: corpus-runner
-  // (644/644 walked, 10 killers), case-loop, so (v9)...
-  var PROBE = 'fa-sink-battery.js';
+  // Active probe: fa-sink2.js (exact case-154 replicate + controlled window).
+  // Previous: sink-battery (clip-path 3/3 = assert DoS per source analysis).
+  var PROBE = 'fa-sink2.js';
   s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
   var sc = document.createElement('script');
   sc.src = PROBE + '?v=' + Date.now();
