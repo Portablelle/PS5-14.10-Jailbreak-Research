@@ -4,10 +4,9 @@
 <script>
 (function() {
   var s = document.getElementById('s');
-  // Active probe: fa-corpus-runner.js (WebKit crash-corpus replay, 51 tests,
-  // crash-resume via /corpus-next). Previous: so (v9), next (v8), silent (v7),
-  // worker (v6), diag, fake (v5), uaf (v3).
-  var PROBE = 'fa-corpus-runner.js';
+  // Active probe: fa-case-loop.js (killer candidates 24/25 x20 iterations).
+  // Previous: corpus-runner (51/51 walked), so (v9), next (v8), silent (v7).
+  var PROBE = 'fa-case-loop.js';
   s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
   var sc = document.createElement('script');
   sc.src = PROBE + '?v=' + Date.now();
