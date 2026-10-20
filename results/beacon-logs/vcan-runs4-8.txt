@@ -1,0 +1,23 @@
+12:12:32 VCFK-BOOT 
+12:12:32 VCFK-PLAN steps=4
+12:15:41 VCFK-BOOT 
+12:15:41 VCFK-PLAN steps=4
+12:18:56 VCD-BOOT 
+12:18:56 VCD-PLAN steps=5
+12:18:56 VCD-D1-START saves=0 marker=false
+12:18:56 VCD-D1-GETTER desynchronized
+12:18:56 VCD-D1-INNER ok=true
+12:18:56 VCD-D1-SAVES-OK 
+12:18:56 VCD-D1-OUTER ok=true same=false
+12:22:12 VCW-BOOT 
+12:22:12 VCW-PLAN worker-matrix
+12:22:12 VCW-W-FP offscreen=false
+12:22:12 VCW-W-DONE no-offscreen-in-worker
+12:25:02 VCS-BOOT 
+12:25:02 VCS-PLAN steps=7
+12:28:09 VCN-BOOT 
+12:28:09 VCN-PLAN steps=7
+12:28:10 VCN-G1 G1-START=saves=1 marker=false | G1-GETTER=desynchronized | G1-INNER=ok=true | G1-SAVES-OK=1 | G1-OUTER=ok=true same=false | G1-OUTER-FILL-OK | G1-SURVIVED
+12:28:10 VCN-G2 G2-START=saves=1 marker=true | G2-GETTER=desynchronized | G2-INNER=ok=true | G2-SAVES-OK=1 | G2-MARKER-OK | G2-OUTER=ok=true same=false | G2-OUTER-FILL-OK | G2-SURVIVED
+12:28:10 VCN-G3 G3-START=saves=8 marker=true | G3-GETTER=desynchronized | G3-INNER=ok=true | G3-SAVES-OK=8 | G3-MARKER-OK | G3-OUTER=ok=true same=false | G3-OUTER-FILL-OK | G3-SURVIVED
+12:28:11 VCN-W ident=spray5 wrapperSame=false writethru=hit5

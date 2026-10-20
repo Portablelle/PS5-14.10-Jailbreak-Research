@@ -255,3 +255,55 @@ NULL) and the first stale read SEGVs. Consequences:
   covering the class).
 - Any future grooming near 384-512 must expect CanvasRenderingContext2D,
   XMLHttpRequest-sized WebCore objects, and small ABs to share the class.
+
+## Full characterization (runs 4-8, 2026-10-20)
+
+Logs: `results/beacon-logs/vcan-runs4-8.txt`.
+
+- **v5/v7 (silent single-task): the bare stale read is FATAL even with a
+  zero-allocation window.** v7's D1 control (plain double-create + one
+  `lineWidth` read, everything in one synchronous JS task, beacons buffered
+  and flushed after) died before its flush. The freed context block is not
+  readable — granule decommit (MADV_FREE) or allocator damage beyond the
+  freelist word. "Freed memory stays mapped" does not hold for the ~400-byte
+  context class.
+- **v6: no OffscreenCanvas in workers either** (`VCW-W-FP offscreen=false`)
+  — the bug is only reachable via HTMLCanvasElement / bitmaprenderer on the
+  main thread.
+- **v8 G1-G3: the getter-side ops are SAFE** — `save()`xN + a state setter
+  inside the dictionary conversion (realized saves grow the out-of-line
+  state stack) plus the destruction of the grown context all survive
+  (`G3-SURVIVED`, outer fills fine). v5's killer was the post-free read.
+- **Structural verdict:** state-stack exfiltration through the stale wrapper
+  is impossible by construction — the Vector header lives in the freed
+  context block (unreadable), and any live context reclaiming the slot
+  points its own Vector at its own buffer. The marker/pointer bytes in a
+  freed state buffer cannot be read back: every JS-visible reclaim writes
+  its own content (ArrayBuffers zero-fill).
+- **v8 W: `ident=spray5 wrapperSame=false writethru=hit5` — DUAL DISTINCT
+  JS WRAPPERS for one C++ CanvasRenderingContext2D.** The wrapper cache did
+  NOT reuse the stale wrapper: `inner !== sprayCtxs[5]`, yet writes through
+  one are visible through the other (`writethru=hit5`). This is a genuine
+  two-wrapper alias, not a cache triviality.
+- **v8 L1: the wild-wrapper lottery's first ticket crashed** (diverse-object
+  reclaim + `W1.canvas` wild read) — expected oracle behavior; needs reruns.
+
+## Status and the remaining paths (after runs 1-8)
+
+- Stage 1 (WebKit memory corruption): **CONFIRMED** — deterministic UAF,
+  both branches, JS-only trigger, getter-side state-stack growth safe.
+- Stage 2 candidates, in order of strength:
+  1. **Second-order UAF with GC-controlled timing:** keep the stale wrapper
+     W1 of a double-create whose slot was reclaimed by a live spray context
+     (dual-wrapper state). Drop the spray wrapper + its canvas, force GC —
+     the canvas destructor destroys the context exactly when we choose, and
+     W1 goes stale again over a slot we can immediately reclaim with a
+     planned object. The first free is engine-timed (noisy); the second
+     free is attacker-timed.
+  2. **Wild-wrapper lottery** (v8 L): reclaim the slot with non-context
+     WebCore objects; `W1.canvas` wraps the pointer at the `m_canvas`
+     offset as an HTMLCanvasElement; `.width`/`.height` read 8 bytes of
+     semi-random live heap memory. Noisy leak path, one ticket per run.
+  3. The direct fake-context route stays blocked on the leak (any valid
+     fake needs a real pointer, and the only pointer sources are unreadable
+     freed blocks).

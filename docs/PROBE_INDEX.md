@@ -161,9 +161,18 @@ varies), `WRITETHRU hitN`, `READTHRU true`, SURVIVED. R1 mechanics OK. R3-1
 (0x41 garbage reclaim) died at the first stale touch. The R2/R3 contrast is
 the complete on-device UAF characterization: same touch, live-context reclaim
 = survives + aliases, attacker-byte reclaim = death. **Stage 1 confirmed,
-Stage 2 aliased read/write confirmed.** Next: v4 controlled-data reclaim
-(exact size class from the vendor source, fake context, addrof/fakeobj).
-Log: `results/beacon-logs/vcan-run3.txt`.
+Stage 2 aliased read/write confirmed.** Log: `results/beacon-logs/vcan-run3.txt`.
+
+**Runs 4-8 (2026-10-20, stage-2 campaign):** v4 (384-512 spray) and v5
+(~16xState spray) died silently — the 384-512 range is the context class
+itself. v6: no OffscreenCanvas in workers. v7: the bare stale read is fatal
+even in a fully silent single-task window — the freed context block is not
+readable (granule decommit); state-stack exfiltration through the stale
+wrapper is structurally closed. v8: getter-side saves+marker are SAFE
+(G1-G3), **W: `wrapperSame=false` — dual distinct JS wrappers for one C++
+context with bidirectional write-through** (the strongest remaining
+primitive), wild-wrapper lottery L1 crashed (first ticket). Consolidated
+logs: `results/beacon-logs/vcan-runs4-8.txt`.
 
 
 ## Relapse Probes (probes/relapse-test/)
