@@ -122,6 +122,50 @@ All probes tested on PS5 14.10. Results from device beacon logs.
 | p170 | CSSFontFace UAF via WOFF2 font cycling | Network errors (PS5 rejects WOFF2) |
 | p175 | CSSFontFace UAF via TTF from ArrayBuffer | Deployed, awaiting results |
 
+## CanvasRenderingContext UAF (CVE-2026-43720)
+
+Probe `fa-canvas-uaf.js` (beacon prefix `VCAN-`), writeup `docs/bugs/canvas-getcontext-uaf.md`.
+Upstream fix `040ef6e21ffa` (Safari 26.5.2) — absent from WK-1400 by construction.
+
+| Phase | What | Positive signal |
+|-------|------|-----------------|
+| FP | OffscreenCanvas / bitmaprenderer / webgl fingerprint | info |
+| CONTROL | settings getters, no reentrancy | baseline |
+| R1 x5 | bare double-create + touch + churn | mechanics only (survival proves nothing: freed memory stays mapped) |
+| R2 x3 | same-class reclaim: 200 spray 2D contexts; innerCtx.canvas identity + lineWidth/fillStyle write-through | `IDENT=sprayK` + `WRITETHRU=hitK` + `READTHRU=true` = bidirectional aliased R/W |
+| R3 x3 | ArrayBuffer reclaim (0x41) across size classes + heavy touch | crash or `CANVAS=other` |
+| R4 x3 | garbage reclaim + drop wrapper + GC pressure | no `R4-i-SURVIVED` after `GC-DONE` = sweep deref crash |
+| OS | OffscreenCanvas double-create variant | crash or freed-but-mapped reads |
+| BR | bitmaprenderer double-create variant | crash or freed-but-mapped reads |
+
+**Run 1 (2026-10-20):** `offscreen=false br=true webgl=false`. CONTROL
+`fired=1` — only one settings member converted (not `colorSpace`), so the
+v1 '2d' reentrancy never fired (R1-R4 no-ops). **BR round: double-create
+succeeded (`inner=true outer=true same=false`) and the webview DIED at the
+first stale-wrapper use** — beacons stop after `BR-1-RESULT`, `inner.canvas`
+never beacons. UAF live on device; v2 adds a Proxy-based trigger (member-name
+independent). Log: `results/beacon-logs/vcan-run1.txt`.
+
+**Run 2 (2026-10-20, v2, fresh webview):** `CONTROL fired=[desynchronized]`;
+`R1-1-CREATE inner=true outer=true same=false via=desynchronized` —
+double-create confirmed on the '2d' branch — then death at `r.inner.canvas`
+(R1-1-REPLAY is the last beacon), on a page less than one second old with no
+memory pressure. **CVE-2026-43720 confirmed, both branches, deterministic
+crash at first stale use.** v3 reorders: R2 aliasing round first (spray
+makes the touch safe), crash oracles (R1T/BR) last. Log:
+`results/beacon-logs/vcan-run2.txt`.
+
+**Run 3 (2026-10-20, v3): BIDIRECTIONAL ALIASED R/W CONFIRMED, 4/4.**
+Every R2 round: `ident=sprayN` (N in 3/5/12/15 — reclaim always lands, index
+varies), `WRITETHRU hitN`, `READTHRU true`, SURVIVED. R1 mechanics OK. R3-1
+(0x41 garbage reclaim) died at the first stale touch. The R2/R3 contrast is
+the complete on-device UAF characterization: same touch, live-context reclaim
+= survives + aliases, attacker-byte reclaim = death. **Stage 1 confirmed,
+Stage 2 aliased read/write confirmed.** Next: v4 controlled-data reclaim
+(exact size class from the vendor source, fake context, addrof/fakeobj).
+Log: `results/beacon-logs/vcan-run3.txt`.
+
+
 ## Relapse Probes (probes/relapse-test/)
 
 | Probe | Purpose | Device Result |

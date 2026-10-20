@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>ps5 kit</title></head>
+<body style="background:#111;color:#ccc;font:14px monospace;padding:12px">
+<pre id="s">PS5 14.10 probe kit</pre>
+<script>
+(function() {
+  var s = document.getElementById('s');
+  // Active probe: fa-canvas-fake.js (CVE-2026-43720 stage-2: state-stack
+  // buffer reclaim + heap leak). Previous: fa-canvas-uaf.js (v3),
+  // probe-current.js (p164v9 metadata groom).
+  var PROBE = 'fa-canvas-fake.js';
+  s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
+  var sc = document.createElement('script');
+  sc.src = PROBE + '?v=' + Date.now();
+  sc.onerror = function() { s.textContent = 'FAILED to load ' + PROBE; };
+  document.body.appendChild(sc);
+})();
+</script>
+</body></html>

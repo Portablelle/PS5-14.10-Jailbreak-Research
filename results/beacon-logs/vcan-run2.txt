@@ -1,0 +1,6 @@
+11:59:38 VCAN-BOOT 
+11:59:38 VCAN-PLAN steps=17
+11:59:38 VCAN-FP offscreen=false br=true webgl=false ua=Mozilla/5.0 (PlayStation; PlayStation 5/14.10) AppleWebKit/605.1.15 (KHTML, like
+11:59:38 VCAN-CONTROL ctx=true fired=[desynchronized] fillOk=true replaySame=true
+11:59:38 VCAN-R1-1-CREATE inner=true outer=true same=false via=desynchronized
+11:59:38 VCAN-R1-1-REPLAY true
