@@ -4,9 +4,9 @@
 <script>
 (function() {
   var s = document.getElementById('s');
-  // Active probe: fa-sink3.js (bisect the 154 kill site). Previous: sink2
-  // (exact-file replicate 3/3), sink-battery (clip-path 3/3).
-  var PROBE = 'fa-sink3.js';
+  // Active probe: fa-sink4.js (exact case-176 replicate + window spray).
+  // Previous: sink3 (154 bisected: assert DoS), sink2, sink-battery.
+  var PROBE = 'fa-sink4.js';
   s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
   var sc = document.createElement('script');
   sc.src = PROBE + '?v=' + Date.now();
