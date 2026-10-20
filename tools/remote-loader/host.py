@@ -172,18 +172,20 @@ def parse_query(data):
 
 
 def build_response(qid, question_bytes, ip=None):
-    """Build a DNS response. With ip -> one A record; without -> NXDOMAIN."""
+    """With ip, return matching A records or NODATA; without, NXDOMAIN."""
+    answer = b""
     if ip is None:
         flags = 0x8183  # QR + RD + RA + NXDOMAIN
-        answer = b""
     else:
         flags = 0x8180  # QR + RD + RA
-        answer = (
-            b"\xc0\x0c"
-            + struct.pack(">HHIH", 1, 1, DEFAULT_TTL, 4)
-            + socket.inet_aton(ip)
-        )
-    header = struct.pack(">HHHHHH", qid, flags, 1, 1 if ip else 0, 0, 0)
+        qtype, qclass = struct.unpack(">HH", question_bytes[-4:])
+        if qtype in (1, 255) and qclass in (1, 255):
+            answer = (
+                b"\xc0\x0c"
+                + struct.pack(">HHIH", 1, 1, DEFAULT_TTL, 4)
+                + socket.inet_aton(ip)
+            )
+    header = struct.pack(">HHHHHH", qid, flags, 1, int(bool(answer)), 0, 0)
     return header + question_bytes + answer
 
 
@@ -196,7 +198,10 @@ class DNSHandler(socketserver.BaseRequestHandler):
         qid, question_bytes, name = parsed
         server = self.server
         server.status.on_dns()
-        if name == server.target:
+        # The 14.10 User's Guide opens the shell at ps5.np.playstation.net and
+        # embeds content from manuals.playstation.net; answer both (ZigZagBoi1 PR #36).
+        extra_targets = getattr(server, "extra_targets", ())
+        if name == server.target or name in extra_targets:
             if server.verbose:
                 say(style(f"[DNS]  {name} -> {server.ip}", 36))
             sock.sendto(
@@ -245,8 +250,18 @@ class GuideHandler(SimpleHTTPRequestHandler):
         a cert error or a blank page you need to know whether the request
         arrived at all. This is the line that answers that.
         """
-        agent = self.headers.get("User-Agent", "-")
-        say(style(f"[HTTP] {self.command} {self.path} -> {code}  UA: {agent[:60]}", 36))
+        agent = getattr(self, "headers", {}).get("User-Agent", "-")
+        path = getattr(self, "path", "-")
+        say(style(f"[HTTP] {self.command} {path} -> {code}  UA: {agent[:60]}", 36))
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+        if not self._host_allowed():
+            self.send_error(403, "Host not allowed")
+            self._log(f"{self.command} -> REJECTED (host mismatch)", error=True)
+            return False
+        return True
 
     def _relative_path(self):
         """Request path, normalized and docroot-relative ('' for root).
@@ -337,15 +352,9 @@ class GuideHandler(SimpleHTTPRequestHandler):
         host = self.headers.get("Host", "").split(":", 1)[0].strip().lower()
         return host == self.allowed_host
 
-    def do_POST(self):
-        """Crash-safe beacon sink: logs every POST to host-beacons.log + 204.
-
-        Used by liveness tests (CVE-2026-43705 PoC etc.): the page beacons a
-        unique path per event; the log line is the wire-visible signature.
-        """
+    def _record_beacon(self, body):
+        """Append a probe event using the existing POST beacon log format."""
         raw = self.path.split("#", 1)[0]
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        body = self.rfile.read(length) if length else b""
         stamp = time.strftime("%H:%M:%S")
         agent = (self.headers.get("User-Agent", "-"))[:70]
         try:
@@ -361,7 +370,8 @@ class GuideHandler(SimpleHTTPRequestHandler):
                 fh.write(line + "\n")
         except OSError:
             pass
-        self.log_request(204)
+
+    def _send_beacon_response(self):
         try:
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -371,12 +381,25 @@ class GuideHandler(SimpleHTTPRequestHandler):
         except BrokenPipeError:
             pass
 
+    def do_POST(self):
+        """Crash-safe beacon sink: logs every POST to host-beacons.log + 204."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        body = self.rfile.read(length) if length else b""
+        self._record_beacon(body)
+        self._send_beacon_response()
+
     def send_head(self):
         raw_path = self.path.split("?", 1)[0].split("#", 1)[0]
         self.server.status.on_http()
         if not self._host_allowed():
             self.send_error(403, "Host not allowed")
             self._log(f"{self.command} {raw_path} -> REJECTED (host mismatch)", error=True)
+            return None
+
+        if raw_path == "/BEACON" or raw_path.startswith("/beacon/"):
+            if self.command == "GET":
+                self._record_beacon(b"")
+            self._send_beacon_response()
             return None
 
         resolved = self._resolve()
@@ -654,6 +677,7 @@ def main(argv=None):
         try:
             dns = DNSServer(("0.0.0.0", args.dns_port), args.target, ip,
                             status, args.verbose)
+            dns.extra_targets = ("ps5.np.playstation.net",)
         except OSError as exc:
             bad(f"Could not bind DNS port {args.dns_port}: {exc}")
             hint = bind_hint("DNS", args.dns_port, exc)
