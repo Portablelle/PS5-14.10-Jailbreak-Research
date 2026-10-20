@@ -46,6 +46,13 @@
   function advance(i, end) {
     if (i >= end) {
       B('CORPUS-DONE-' + (end - 1));
+      // Batch finished but corpus remains: reload and resume from the
+      // /corpus-next cursor (highest GAP). Only a crash needs a manual
+      // reopen — the walk otherwise self-drives to the end of the corpus.
+      if (end < list.length) {
+        B('BATCH-RELOAD');
+        setTimeout(function() { location.reload(); }, 500);
+      }
       return;
     }
     var entry = list[i];
