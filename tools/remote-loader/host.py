@@ -388,6 +388,39 @@ class GuideHandler(SimpleHTTPRequestHandler):
         self._record_beacon(body)
         self._send_beacon_response()
 
+    def _send_corpus_next(self):
+        """Crash-resume cursor for the corpus runner.
+
+        The runner marks each closed case with a GAP-<i> beacon; a case that
+        kills the WebProcess emits BEFORE-<i> with no GAP. The next page load
+        asks this endpoint where to resume, so a corpus walk survives any
+        number of crashes without re-running known-OK cases.
+        """
+        import re as _re
+        highest = -1
+        try:
+            with open(os.path.join(REPO_ROOT, "host-beacons.log"), encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        path = json.loads(line).get("path", "")
+                    except ValueError:
+                        continue
+                    m = _re.search(r"GAP-(\d+)", path)
+                    if m:
+                        highest = max(highest, int(m.group(1)))
+        except OSError:
+            pass
+        payload = json.dumps({"next": highest + 1}).encode("utf-8")
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def send_head(self):
         raw_path = self.path.split("?", 1)[0].split("#", 1)[0]
         self.server.status.on_http()
@@ -400,6 +433,10 @@ class GuideHandler(SimpleHTTPRequestHandler):
             if self.command == "GET":
                 self._record_beacon(b"")
             self._send_beacon_response()
+            return None
+
+        if raw_path == "/corpus-next":
+            self._send_corpus_next()
             return None
 
         resolved = self._resolve()
