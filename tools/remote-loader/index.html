@@ -4,10 +4,10 @@
 <script>
 (function() {
   var s = document.getElementById('s');
-  // Active probe: fa-canvas-silent.js (v7: silent single-task matrix).
-  // Previous: fa-canvas-worker.js (v6, no OffscreenCanvas), fa-canvas-diag.js,
-  // fa-canvas-fake.js (v5), fa-canvas-uaf.js (v3).
-  var PROBE = 'fa-canvas-silent.js';
+  // Active probe: fa-canvas-next.js (v8: getter validation + W identity +
+  // wild-wrapper lottery). Previous: silent (v7), worker (v6), diag, fake (v5),
+  // uaf (v3).
+  var PROBE = 'fa-canvas-next.js';
   s.textContent = 'running ' + PROBE + ' ...\nresults: host-beacons.log on the serving Mac';
   var sc = document.createElement('script');
   sc.src = PROBE + '?v=' + Date.now();
