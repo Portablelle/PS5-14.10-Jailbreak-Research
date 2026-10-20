@@ -18,33 +18,44 @@ protocol. Log: `results/beacon-logs/corpus-walk-complete.txt`.
 | 499 | WPT `css/cssom/insertRule-page-detached-grouping-rule-crash` | null deref in `CSSParser::parsePageSelector()` | 1/1, DoS-shaped |
 | 504 | `fast/parser/resources/xml-parser-end-detach-frame.xhtml` | null deref in `XMLDocumentParser::end()` | 1/1, DoS-shaped |
 
-## Exploitation ranking
+## Exploitation ranking (final, after the sink2/3/4 campaign)
 
-1. **Case 176** (BZ 272687, dup of 272296; fixed by the patch for **BZ 272488**,
-   commit `7edad1b0d5e5`, originally landed from the
-   `webkit-2024.4-embargoed` branch with WebKit security CC'd) —
-   `RenderBlockFlow::rebuildFloatingObjectSetFromIntrudingFloats()` moved the
-   old floating objects into a `RendererToFloatInfoMap` keyed by RAW
-   `RenderBox*` pointers, compared stale float geometry against the rebuilt
-   set, and marked line ranges dirty from it — dangling renderer pointers
-   across a layout rebuild. The fix DELETES the whole path. Pure-JS minimal
-   trigger (writing-mode + display class flips + a float rebuild);
-   **mutation→layout window is attacker-sized**. The strongest remaining
-   reclaim candidate of the corpus.
+1. ~~**Case 176**~~ (BZ 272687/272296, fixed by the embargoed patch for BZ
+   272488, commit `7edad1b0d5e5`) — the stale `RendererToFloatInfoMap`
+   (raw `RenderBox*` keys across the float rebuild) is real, and the
+   exact-file replicate kills 3/3 with every WINDOW beacon delivered
+   (`fa-sink4.js`, `results/beacon-logs/sink4-176.txt`): the
+   mutation→layout window exists and sprays run inside it — but all three
+   variants (baseline, AB, in-iframe float-element) die identically. The
+   dangling renderers are freed INSIDE the deadly layout pass (the rebuild
+   invalidates, destroys, then compares the stale map in one operation).
+   No JS-controllable reclaim window. Deterministic DoS with a security-
+   shaped root cause; a reclaim would need the free to move out of the
+   layout pass.
 2. **Cases 152/160** (BZ 263019 / 263182) — IFC partial-invalidation computes
-   inconsistent damage offsets (first-letter, offset past the last display
-   box); downstream OOB-read shapes, fixes at `626ccb56` / `c7356ae7`.
-3. **Case 217** (BZ 280068) — subgrid implicitly-named lines can produce an
-   EMPTY Vector used downstream (fix `65ecac43`).
+   inconsistent damage offsets; downstream OOB-read shapes, fixes at
+   `626ccb56` / `c7356ae7`. Unexplored for windows.
+3. **Case 217** (BZ 280068) — subgrid empty-Vector downstream use
+   (fix `65ecac43`). Unexplored.
 4. ~~Cases 147 + 410~~ — `TreeScopeOrderedMap` kills are RELEASE_ASSERT aborts
-   on this build (17.0-era `get()` asserts `treeScope == scope`): DoS only.
-   Minimal clip-path trigger 3/3 (`fa-sink-battery.js`).
-5. ~~Case 154~~ — multicol stale `m_lastSetWorkedOn`: the cache points at a
-   MOVED (live) set, not a freed one; the kill needs the heavy CSS +
-   `execCommand` immediately at onload (delayed 1.5s → survives; noscript →
-   survives; nolayout → survives; `fa-sink3.js`). Assert DoS, nothing to
-   reclaim.
+   on this build: DoS. Minimal clip-path trigger 3/3 (`fa-sink-battery.js`).
+5. ~~Case 154~~ — multicol stale `m_lastSetWorkedOn` points at a MOVED (live)
+   set; kill needs heavy CSS + `execCommand` at onload exactly (bisected,
+   `fa-sink3.js`). Assert DoS.
 6. 499/504 — null derefs, DoS only.
+
+## Session conclusion (2026-10-20)
+
+Twelve reproducible kills were confirmed on this console (canvas UAF runs,
+event-dispatcher 3/3, ten corpus killers). Every one is either a teardown-tight
+UAF (free and use inside one C++ operation: the 1ms RunLoop::Timer callback,
+the in-layout float rebuild, the engine-timed canvas slot whose freed block is
+unreadable) or an assert/null-deref DoS. The canvas bug (CVE-2026-43720)
+remains the best stage-1 primitive — attacker-sized reclaim window, proven 4/4
+same-class aliasing — but its pointer exfiltration is structurally closed
+without the vendor binary. The realistic next steps: binary analysis
+(sizes/offsets/gadgets for a fake that survives), further corpus harvests, or
+the IFC/subgrid bugs' windows.
 
 ## Session mechanics (for future walks)
 
