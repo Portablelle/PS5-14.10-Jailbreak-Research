@@ -21,3 +21,11 @@
 12:28:10 VCN-G2 G2-START=saves=1 marker=true | G2-GETTER=desynchronized | G2-INNER=ok=true | G2-SAVES-OK=1 | G2-MARKER-OK | G2-OUTER=ok=true same=false | G2-OUTER-FILL-OK | G2-SURVIVED
 12:28:10 VCN-G3 G3-START=saves=8 marker=true | G3-GETTER=desynchronized | G3-INNER=ok=true | G3-SAVES-OK=8 | G3-MARKER-OK | G3-OUTER=ok=true same=false | G3-OUTER-FILL-OK | G3-SURVIVED
 12:28:11 VCN-W ident=spray5 wrapperSame=false writethru=hit5
+12:31:18 VCX-BOOT 
+12:31:18 VCX-PLAN steps=5
+12:31:18 VCX-SO-IDENT1 spray8
+12:31:18 VCX-SO-WRAP1 same=false
+12:31:18 VCX-SO-DROP idx=8
+12:31:20 VCX-SO-GC timeout
+12:31:20 VCX-SO-IDENT2 other
+12:31:20 VCX-SO-SURVIVED 

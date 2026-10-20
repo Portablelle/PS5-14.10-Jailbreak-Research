@@ -287,23 +287,34 @@ Logs: `results/beacon-logs/vcan-runs4-8.txt`.
   two-wrapper alias, not a cache triviality.
 - **v8 L1: the wild-wrapper lottery's first ticket crashed** (diverse-object
   reclaim + `W1.canvas` wild read) — expected oracle behavior; needs reruns.
+- **v9 (second-order attempt): the dual-wrapper state is REF-PINNED.**
+  `SO-GC timeout` after 60 churn rounds: the aliased canvas is never
+  collected while the stale wrapper lives. Structure: the JS wrapper's ref
+  forwards to the OWNING CANVAS ("the wrapper's ref does not keep the
+  context alive" — the fix commit's own words), so W1 → ref → canvas_C →
+  m_context (unique_ptr) → ctx_c — the whole chain stays alive while W1 is
+  held. **A GC-timed second free is impossible while holding the stale
+  wrapper.** (`SO-IDENT2 other` was consistent: canvas_C still alive at the
+  slot.) The XHR lottery ticket also crashed (v9 EL1).
 
-## Status and the remaining paths (after runs 1-8)
+## Status and the remaining paths (after runs 1-9)
 
 - Stage 1 (WebKit memory corruption): **CONFIRMED** — deterministic UAF,
   both branches, JS-only trigger, getter-side state-stack growth safe.
-- Stage 2 candidates, in order of strength:
-  1. **Second-order UAF with GC-controlled timing:** keep the stale wrapper
-     W1 of a double-create whose slot was reclaimed by a live spray context
-     (dual-wrapper state). Drop the spray wrapper + its canvas, force GC —
-     the canvas destructor destroys the context exactly when we choose, and
-     W1 goes stale again over a slot we can immediately reclaim with a
-     planned object. The first free is engine-timed (noisy); the second
-     free is attacker-timed.
-  2. **Wild-wrapper lottery** (v8 L): reclaim the slot with non-context
-     WebCore objects; `W1.canvas` wraps the pointer at the `m_canvas`
-     offset as an HTMLCanvasElement; `.width`/`.height` read 8 bytes of
-     semi-random live heap memory. Noisy leak path, one ticket per run.
-  3. The direct fake-context route stays blocked on the leak (any valid
-     fake needs a real pointer, and the only pointer sources are unreadable
-     freed blocks).
+- The full exploitation surface is now characterized; every classic stage-2
+  path from this bug alone is closed or pinned:
+  1. **Second-order UAF via GC: REF-PINNED** (v9) — the stale wrapper keeps
+     the aliased canvas alive; the canvas destructor cannot run while the
+     wrapper is held. The first free is engine-timed and noisy; there is no
+     attacker-timed second free.
+  2. **Wild-wrapper lottery** (v8 L, v9 EL): all tickets so far crash
+     (0x60-AB, XHR); a survivable ticket type (real pointer at the
+     `m_canvas` offset of a 384-512-class object) remains possible but
+     unproven.
+  3. State-stack exfiltration: structurally closed (v7/v8).
+  4. Direct fake-context route: blocked on the leak (any valid fake needs a
+     real pointer; the only pointer sources are unreadable freed blocks).
+- The realistic next steps need either the vendor binary (sizes, offsets,
+  gadget hunting for a ROP-ready fake) or a different bug pairing for the
+  first leak. As a stage-1 primitive this bug is complete and is the best
+  characterized memory-corruption candidate on 14.10 to date.
